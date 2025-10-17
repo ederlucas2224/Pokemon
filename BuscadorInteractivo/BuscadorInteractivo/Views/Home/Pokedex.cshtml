@@ -1,0 +1,226 @@
+﻿@model List<BuscadorInteractivo.Models.PokedexPokemon>
+@{
+    ViewData["Title"] = "Pokédex";
+    var types = ViewBag.Types as List<string>;
+    var selectedType = ViewBag.SelectedType as string ?? "";
+    var offset = ViewBag.Offset ?? 0;
+    var limit = ViewBag.Limit ?? 20;
+}
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<style>
+    .pokedex-grid {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 1rem;
+        padding: 1rem;
+    }
+
+    .poke-mini-card {
+        width: 160px;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 10px;
+        text-align: center;
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+
+        .poke-mini-card:hover {
+            transform: scale(1.05);
+        }
+
+    .poke-mini-img {
+        width: 100px;
+        height: 100px;
+        object-fit: contain;
+    }
+
+    .poke-mini-name {
+        font-weight: bold;
+        margin-top: 0.5rem;
+    }
+</style>
+
+<h2 class="text-center mb-3">Pokédex</h2>
+
+<form id="filterForm" class="mb-3 text-center">
+    <select id="typeSelect" name="type" class="form-select d-inline-block w-auto">
+        <option value="">Todos los tipos</option>
+        @foreach (var t in types)
+        {
+            var selected = (selectedType == t) ? "selected" : "";
+            var capitalized = char.ToUpper(t[0]) + t.Substring(1);
+            @Html.Raw($"<option value='{t}' {selected}>{capitalized}</option>")
+        }
+    </select>
+</form>
+
+<div id="pokedexGrid" class="pokedex-grid">
+    @foreach (var poke in Model)
+    {
+        <div class="poke-mini-card" data-name="@poke.Name" onclick="showDetails('@poke.Name')">
+            <img src="@poke.Img" class="poke-mini-img" alt="@poke.Name" />
+            <div class="poke-mini-name">@poke.Name</div>
+            <div>
+                @foreach (var tipo in poke.Types)
+                {
+                    <span class="badge bg-primary text-capitalize me-1">@tipo</span>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<div id="loader" class="text-center" style="display:none;">
+    <div class="spinner-border text-primary" style="width: 40px; height: 40px;" role="status">
+        <span class="visually-hidden">Cargando...</span>
+    </div>
+</div>
+
+<div id="endMsg" class="text-center text-muted mt-3" style="display:none;">No hay más Pokémon.</div>
+
+<!-- Modal para detalles -->
+<div class="modal fade" id="pokeModal" tabindex="-1" aria-labelledby="pokeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:18px;">
+            <div class="modal-header">
+                <h5 class="modal-title" id="pokeModalLabel">Detalles del Pokémon</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body" id="pokeModalBody">
+                <!-- Aquí va el flip card -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // Inicialización segura con Json.Serialize para evitar errores de comillas
+    let offset = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(offset));
+    let limit = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(limit));
+    let selectedType = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(selectedType));
+    let loading = false;
+
+    document.getElementById("typeSelect").addEventListener("change", function () {
+        document.getElementById("loader").style.display = "block";
+        document.getElementById("endMsg").style.display = "none"; // Ocultar mensaje "No hay más Pokémon"
+        window.location = '?type=' + this.value;
+    });
+
+    window.addEventListener('scroll', async function () {
+        if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 100 && !loading) {
+            await loadMore();
+        }
+    });
+
+    async function loadMore() {
+        loading = true;
+        document.getElementById("loader").style.display = "block";
+        offset += limit;
+
+        let url = `/Home/PokedexData?offset=${offset}&limit=${limit}&type=${selectedType}`;
+        let res = await fetch(url);
+        if (!res.ok) {
+            document.getElementById("loader").style.display = "none";
+            loading = false;
+            return;
+        }
+        let data = await res.json();
+
+        if (data.length === 0) {
+            document.getElementById("endMsg").style.display = "block";
+            document.getElementById("loader").style.display = "none";
+            loading = false;
+            return;
+        }
+
+        let grid = document.getElementById("pokedexGrid");
+        data.forEach(poke => {
+            let card = document.createElement("div");
+            card.className = "poke-mini-card";
+            card.setAttribute("data-name", poke.name);
+            card.onclick = () => showDetails(poke.name);
+            card.innerHTML = `
+                <img src="${poke.img}" class="poke-mini-img" alt="${poke.name}" />
+                <div class="poke-mini-name">${poke.name}</div>
+                <div>
+                    ${poke.types.map(t => `<span class="badge bg-primary text-capitalize me-1">${t}</span>`).join("")}
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+
+        document.getElementById("loader").style.display = "none";
+        loading = false;
+
+        // Revisa si después de cargar más sigue sin scroll, si es así, carga más
+        checkAndLoadMoreIfNoScroll();
+    }
+
+    // Función para verificar si no hay scroll vertical suficiente y cargar más
+    async function checkAndLoadMoreIfNoScroll() {
+        const canScroll = document.body.scrollHeight > window.innerHeight;
+        if (!canScroll && !loading) {
+            await loadMore();
+        }
+    }
+
+    // Ejecutar después de que el DOM esté listo para verificar scroll inicial
+    document.addEventListener("DOMContentLoaded", () => {
+        checkAndLoadMoreIfNoScroll();
+    });
+
+    async function showDetails(name) {
+        let res = await fetch(`/Home/PokedexDetails?name=${name}`);
+        if (!res.ok) {
+            alert("Error al obtener detalles del Pokémon");
+            return;
+        }
+        let poke = await res.json();
+
+        document.getElementById("pokeModalBody").innerHTML = `
+            <div class="card poke-card shadow" style="width: 20rem; margin:auto;">
+                <div id="frontCardModal">
+                    <img src="${poke.sprites.front_default}" class="poke-img mx-auto" alt="sprite" />
+                    <div class="card-body text-center">
+                        <div class="poke-title">${poke.name}</div>
+                        <div class="poke-types mb-2">
+                            ${poke.types.map(t => `<span class="poke-type">${t.type.name}</span>`).join("")}
+                        </div>
+                        <button class="poke-btn btn btn-primary" type="button" onclick="showBackModal()">Ver estadísticas</button>
+                    </div>
+                </div>
+                <div id="backCardModal" style="display:none;">
+                    <div class="card-body text-center">
+                        <div class="poke-back-title">Estadísticas base</div>
+                        <ul class="list-group list-group-flush mb-3">
+                            ${poke.stats.filter(s => ["hp","attack","defense","speed"].includes(s.stat.name))
+                                .map(s => `<li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span class="fw-bold text-capitalize">${s.stat.name}</span>
+                                    <span>${s.base_stat}</span>
+                                </li>`).join("")}
+                        </ul>
+                        <button class="poke-btn btn btn-secondary" type="button" onclick="showFrontModal()">Volver</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        var modal = new bootstrap.Modal(document.getElementById('pokeModal'));
+        modal.show();
+    }
+
+    function showBackModal() {
+        document.getElementById('frontCardModal').style.display = 'none';
+        document.getElementById('backCardModal').style.display = 'block';
+    }
+    function showFrontModal() {
+        document.getElementById('backCardModal').style.display = 'none';
+        document.getElementById('frontCardModal').style.display = 'block';
+    }
+</script>

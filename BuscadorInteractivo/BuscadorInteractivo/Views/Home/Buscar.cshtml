@@ -1,0 +1,163 @@
+﻿@model BuscadorInteractivo.Models.SearchModel
+
+<div class="position-relative my-4">
+    <button type="button" onclick="window.location.href='/Home/Pokedex'" class="btn btn-primary position-absolute start-0">
+        Ir a Pokédex
+    </button>
+    <h2 class="text-center">Búsqueda Pokémon</h2>
+</div>
+
+
+<style>
+    .poke-card {
+        background: linear-gradient(135deg, #e0e7ff 60%, #f8fafc 100%);
+        border-radius: 20px;
+        box-shadow: 0 8px 24px rgba(99,102,241,0.13), 0 1.5px 4px rgba(0,0,0,0.08);
+        border: none;
+        overflow: hidden;
+        transition: box-shadow 0.3s;
+    }
+
+        .poke-card:hover {
+            box-shadow: 0 12px 32px rgba(99,102,241,0.18), 0 2px 8px rgba(0,0,0,0.12);
+        }
+
+    .poke-img {
+        width: 140px;
+        height: 140px;
+        background: #a5b4fc;
+        border-radius: 50%;
+        border: 5px solid #fff;
+        box-shadow: 0 2px 8px rgba(129,140,248,0.15);
+        margin-top: 20px;
+        margin-bottom: 10px;
+    }
+
+    .poke-title {
+        font-size: 2em;
+        font-weight: bold;
+        color: #6366f1;
+        text-shadow: 0 1px 0 #fff;
+        margin-bottom: 10px;
+        text-transform: capitalize;
+    }
+
+    .poke-types {
+        margin-bottom: 18px;
+    }
+
+    .poke-type {
+        display: inline-block;
+        background: linear-gradient(90deg, #818cf8 60%, #6366f1 100%);
+        color: #fff;
+        border-radius: 12px;
+        padding: 4px 16px;
+        margin: 0 4px;
+        font-size: 1em;
+        font-weight: 500;
+        text-transform: capitalize;
+        box-shadow: 0 1px 4px rgba(129,140,248,0.15);
+    }
+
+    .poke-btn {
+        margin-top: 18px;
+        background: linear-gradient(90deg, #6366f1 60%, #818cf8 100%);
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 24px;
+        cursor: pointer;
+        font-size: 1.1em;
+        font-weight: 600;
+        box-shadow: 0 2px 8px rgba(99,102,241,0.13);
+        transition: background 0.2s;
+    }
+
+        .poke-btn:hover {
+            background: linear-gradient(90deg, #818cf8 60%, #6366f1 100%);
+        }
+
+    .poke-back-title {
+        font-size: 1.3em;
+        color: #6366f1;
+        margin-bottom: 10px;
+        font-weight: bold;
+    }
+
+    .list-group-item {
+        background: #f3f4f6;
+        border: none;
+        border-radius: 8px;
+        margin-bottom: 6px;
+        font-size: 1.1em;
+        color: #4b5563;
+    }
+
+    .fw-bold {
+        color: #6366f1;
+    }
+</style>
+
+<form asp-action="Buscar" method="post" class="mb-4 text-center">
+    <input asp-for="Nombre" placeholder="Nombre" class="form-control d-inline w-auto" />
+    <button type="submit" class="btn btn-primary ms-2">Buscar</button>
+</form>
+
+@if (ViewBag.Loading == true)
+{
+    <div class="alert alert-warning text-center">Cargando información del API...</div>
+}
+
+@if (ViewBag.Error != null)
+{
+    <div class="alert alert-danger text-center"><strong>Error:</strong> @ViewBag.Error</div>
+}
+
+@if (ViewBag.Pokemon != null)
+{
+    <div class="d-flex justify-content-center">
+        <div class="card poke-card shadow" style="width: 22rem;">
+            <div id="frontCard">
+                <img src="@ViewBag.Pokemon.Sprites" class="poke-img mx-auto" alt="sprite" />
+                <div class="card-body text-center">
+                    <div class="poke-title">@ViewBag.Pokemon.Name</div>
+                    <div class="poke-types mb-2">
+                        @foreach (var tipo in ViewBag.Pokemon.Types)
+                        {
+                            <span class="poke-type">@tipo</span>
+                        }
+                    </div>
+                    <button class="poke-btn" type="button" onclick="showBack()">Ver estadísticas</button>
+                </div>
+            </div>
+            <div id="backCard" style="display:none;">
+                <div class="card-body text-center">
+                    <div class="poke-back-title">Estadísticas base</div>
+                    <ul class="list-group list-group-flush mb-3">
+                        @foreach (var stat in ViewBag.Pokemon.Stats)
+                        {
+                            if (stat.Name == "hp" || stat.Name == "attack" || stat.Name == "defense" || stat.Name == "speed")
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span class="fw-bold text-capitalize">@stat.Name</span>
+                                    <span>@stat.Base</span>
+                                </li>
+                            }
+                        }
+                    </ul>
+                    <button class="poke-btn" type="button" onclick="showFront()">Volver</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        function showBack() {
+            document.getElementById('frontCard').style.display = 'none';
+            document.getElementById('backCard').style.display = 'block';
+        }
+        function showFront() {
+            document.getElementById('backCard').style.display = 'none';
+            document.getElementById('frontCard').style.display = 'block';
+        }
+    </script>
+}
